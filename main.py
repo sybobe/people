@@ -17,7 +17,7 @@ st.write(
 @st.cache_data
 def load_and_preprocess_data():
     # ⚠️ 아래 URL 부분을 실제 데이터 파일의 주소(URL)로 변경해주세요.
-    url = "https://example.com/202607_202607.csv"
+    url = "https://github.com/sybobe/people/raw/refs/heads/main/data/202607_202607.csv"
 
     # 판다스로 CSV 파일 읽기 (인코딩 예외 처리)
     try:
