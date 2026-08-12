@@ -1,149 +1,19 @@
-import pandas as pd
-import plotly.express as px
-import streamlit as st
+스트림릿 앱 하나(main.py)를 만들어줘. 데이터의 '퍼짐'을 눈으로 보는 아주 간단한 앱이야.
+스트림릿 클라우드에 올릴 거야.
 
-# 1. 페이지 기본 설정 (제목, 레이아웃)
-st.set_page_config(
-    page_title="동네별 총인구 분포 확인하기", page_icon="📊", layout="wide"
-)
-
-st.title("📊 우리 동네 인구 분포(퍼짐) 살펴보기")
-st.write(
-    "주민등록 인구통계 데이터를 활용하여 전국 읍·면·동별 총인구수 분포를 시각화합니다."
-)
-
-
-# 2. 데이터 불러오기 및 전처리 함수
-@st.cache_data
-def load_and_preprocess_data():
-    # ⚠️ 아래 URL 부분을 실제 데이터 파일의 주소(URL)로 변경해주세요.
-    url = "https://github.com/sybobe/people/raw/refs/heads/main/data/202607_202607.csv"
-
-    # 판다스로 CSV 파일 읽기 (인코딩 예외 처리)
-    try:
-        df = pd.read_csv(url, encoding="utf-8")
-    except UnicodeDecodeError:
-        df = pd.read_csv(url, encoding="cp949")
-    except Exception as e:
-        st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
-        return pd.DataFrame()
-
-    # '연도' 열이 존재할 경우 가장 최신 연도 데이터만 필터링
-    if "연도" in df.columns:
-        latest_year = df["연도"].max()
-        df = df[df["연도"] == latest_year]
-
-    # '남_' 및 '여_'로 시작하는 나이별 인구 열 찾기
-    male_cols = [c for c in df.columns if str(c).startswith("남_")]
-    female_cols = [c for c in df.columns if str(c).startswith("여_")]
-
-    # 남/여 나이별 인구를 모두 합산하여 '총인구' 열 생성
-    df["총인구"] = df[male_cols + female_cols].sum(axis=1)
-
-    return df
-
-
-# 데이터 불러오기 실행
-with st.spinner("데이터를 불러오는 중입니다..."):
-    df = load_and_preprocess_data()
-
-# 데이터 로드 검증
-if df.empty or "총인구" not in df.columns:
-    st.warning(
-        "데이터를 정상적으로 불러오지 못했거나 '총인구' 열을 생성할 수 없습니다. 데이터 URL을 확인해 주세요."
-    )
-    st.stop()
-
-st.success("데이터를 성공적으로 불러왔습니다!")
-
-st.markdown("---")
-
-# ---------------------------------------------------------
-# 1. 총인구 기술통계량 (describe) 표 출력
-# ---------------------------------------------------------
-st.subheader("1. 총인구 요약 통계량 (describe)")
-st.write(
-    "전국 읍·면·동 총인구수의 평균, 중앙값, 최솟값, 최댓값 등의 요약 통계입니다."
-)
-
-stats_df = df[["총인구"]].describe().reset_index()
-stats_df.columns = ["통계 항목", "총인구(명)"]
-
-# 통계 항목 용어 한글화
-korean_stats = {
-    "count": "동네 개수 (count)",
-    "mean": "평균 인구수 (mean)",
-    "std": "표준편차 (std)",
-    "min": "최소 인구수 (min)",
-    "25%": "1분위수 (25%)",
-    "50%": "중앙값 (50%)",
-    "75%": "3분위수 (75%)",
-    "max": "최대 인구수 (max)",
-}
-stats_df["통계 항목"] = stats_df["통계 항목"].map(
-    lambda x: korean_stats.get(x, x)
-)
-
-st.dataframe(stats_df, use_container_width=True)
-
-st.markdown("---")
-
-# 따뜻한 톤 컬러 설정
-warm_color_main = "#E07A5F"
-warm_color_alt = "#F4F1DE"
-
-# ---------------------------------------------------------
-# 2. 총인구 히스토그램 (Plotly)
-# ---------------------------------------------------------
-st.subheader("2. 총인구 히스토그램")
-st.write(
-    "인구 구간별로 몇 개의 동네(읍·면·동)가 속해 있는지 분포를 보여줍니다."
-)
-
-fig_hist = px.histogram(
-    df,
-    x="총인구",
-    nbins=50,
-    title="전국 읍·면·동 총인구수 분포 (히스토그램)",
-    labels={"총인구": "총인구수 (명)", "count": "동네 수"},
-    color_discrete_sequence=[warm_color_main],
-)
-
-fig_hist.update_layout(
-    plot_bgcolor=warm_color_alt,
-    paper_bgcolor="white",
-    font=dict(color="#3D405B", size=13),
-    xaxis_title="총인구수 (명)",
-    yaxis_title="동네 수 (개)",
-    hovermode="x unified",
-)
-
-st.plotly_chart(fig_hist, use_container_width=True)
-
-st.markdown("---")
-
-# ---------------------------------------------------------
-# 3. 총인구 상자그림 (Box Plot) (Plotly)
-# ---------------------------------------------------------
-st.subheader("3. 총인구 상자그림 (Box Plot)")
-st.write(
-    "인구수 데이터의 중앙값, 분위수, 이상치(인구가 매우 많거나 적은 지역)를 한눈에 확인할 수 있습니다."
-)
-
-fig_box = px.box(
-    df,
-    y="총인구",
-    title="전국 읍·면·동 총인구수 상자그림",
-    labels={"총인구": "총인구수 (명)"},
-    color_discrete_sequence=[warm_color_main],
-    points="outliers",
-)
-
-fig_box.update_layout(
-    plot_bgcolor=warm_color_alt,
-    paper_bgcolor="white",
-    font=dict(color="#3D405B", size=13),
-    yaxis_title="총인구수 (명)",
-)
-
-st.plotly_chart(fig_box, use_container_width=True)
+- 데이터는 이 주소의 CSV를 pandas로 읽어(압축 파일이지만 판다스로 그냥 읽혀):
+  https://raw.githubusercontent.com/greatsong/modudata/main/data/population_yearly.csv.gz
+- 가장 최신 연도만 남겨줘. 이 데이터는 이미 읍·면·동 단위야(시도·시군구 합계행은 안 섞여 있어).
+- 표에는 연도·시도·시군구·동·코드 열과 나이별 인구 열이 있어.
+  나이별 열은 '계_0세', '남_0세', '여_0세'처럼 나이 하나마다 하나씩,
+  '계_100세 이상'까지 이어져.
+- 동네(행)마다 '남_'으로 시작하는 모든 열과 '여_'로 시작하는 모든 열을
+  전부 더해 '총인구' 열을 하나 만들어줘.
+- 그래프는 정적인 이미지 말고, 마우스로 확대·축소하고 값을 확인할 수 있게 plotly로 그려줘.
+- 화면에 순서대로 세 가지를 보여줘:
+  1) 총인구의 describe() 결과 표
+  2) 총인구 히스토그램
+  3) 총인구 상자그림
+- 한국어 라벨, 따뜻한 톤, 초보자용으로 주석을 한국어로 달아줘.
+- 필요한 라이브러리 목록(requirements.txt)도 같이 줘.
+  버전 숫자 없이 이름만, 스트림릿·판다스·넘파이는 기본 설치라 빼고.
